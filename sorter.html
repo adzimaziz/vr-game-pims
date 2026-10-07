@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Data Sorter VR</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #050d1c; overflow: hidden; font-family: "Segoe UI", Arial, sans-serif; color: #e8f1f8; }
+  #help { position: absolute; left: 16px; top: 16px; max-width: 420px; background: rgba(6, 20, 40, .82); border: 1px solid #2c6d86;
+          padding: 14px 16px; font-size: 14px; line-height: 1.45; }
+  #help b { color: #8fc74e; }
+  #help .k { display: inline-block; min-width: 18px; padding: 0 6px; border: 1px solid #5fd3e8; text-align: center; margin: 0 2px; }
+</style>
+<script type="importmap">{ "imports": { "three": "./lib/three.module.js" } }</script>
+</head>
+<body>
+<div id="help">
+  <a href="index.html" style="color:#5fd3e8">← Game menu</a><br><br>
+  <b>DATA SORTER</b> — sort the plant data to the beat<br>
+  In VR: press <b>ENTER VR</b>, then pull <b>both triggers</b> to start. <b>B / Y</b> = back to menu.<br>
+  Blue data → <b>left</b> hand · Red anomaly → <b>right</b> hand.<br><br>
+  Desktop test: <span class="k">Space</span> start · <span class="k">F</span> left · <span class="k">J</span> right · <span class="k">M</span> menu
+</div>
+<script type="module" src="./game.js"></script>
+</body>
+</html>

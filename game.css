@@ -1,0 +1,6 @@
+html, body { margin: 0; height: 100%; background: #050d1c; overflow: hidden; font-family: "Segoe UI", Arial, sans-serif; color: #e8f1f8; }
+#help { position: absolute; left: 16px; top: 16px; max-width: 460px; background: rgba(6, 20, 40, .82); border: 1px solid #2c6d86;
+        padding: 14px 16px; font-size: 14px; line-height: 1.45; }
+#help b { color: #8fc74e; }
+#help a { color: #5fd3e8; }
+#help .k { display: inline-block; min-width: 18px; padding: 0 6px; border: 1px solid #5fd3e8; text-align: center; margin: 0 2px; }

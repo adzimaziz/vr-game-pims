@@ -3,23 +3,84 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Data Sorter VR</title>
+<title>PI VR Games — TNB Genco</title>
+<meta name="theme-color" content="#050d1c">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="assets/icon-192.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
 <style>
-  html, body { margin: 0; height: 100%; background: #050d1c; overflow: hidden; font-family: "Segoe UI", Arial, sans-serif; color: #e8f1f8; }
-  #help { position: absolute; left: 16px; top: 16px; max-width: 420px; background: rgba(6, 20, 40, .82); border: 1px solid #2c6d86;
-          padding: 14px 16px; font-size: 14px; line-height: 1.45; }
-  #help b { color: #8fc74e; }
-  #help .k { display: inline-block; min-width: 18px; padding: 0 6px; border: 1px solid #5fd3e8; text-align: center; margin: 0 2px; }
+  :root { --navy: #050d1c; --panel: rgba(8, 26, 50, .92); --teal: #3fd0c9; --blue: #1e90d6; --green: #8fc74e; --amber: #f2a541; --text: #e8f1f8; --muted: #9fb8cc; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; background: var(--navy); color: var(--text); font-family: Bahnschrift, "Segoe UI", Arial, sans-serif; }
+  body { background:
+      radial-gradient(1200px 600px at 85% -10%, rgba(30, 144, 214, .35), transparent 60%),
+      radial-gradient(900px 500px at -10% 110%, rgba(143, 199, 78, .18), transparent 60%), var(--navy); }
+  header { display: flex; align-items: center; justify-content: space-between; padding: 28px 48px 8px; gap: 16px; flex-wrap: wrap; }
+  header .logos { display: flex; gap: 28px; align-items: center; }
+  header img { height: 54px; }
+  .kicker { color: var(--green); letter-spacing: .28em; font-weight: 700; font-size: 18px; }
+  h1 { margin: 6px 48px 4px; font-size: clamp(40px, 6vw, 76px); letter-spacing: .02em; }
+  .sub { margin: 0 48px 28px; color: var(--muted); font-size: 20px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 28px; padding: 0 48px 32px; }
+  a.card { position: relative; display: flex; flex-direction: column; text-decoration: none; color: var(--text); background: var(--panel);
+           border: 2px solid rgba(63, 208, 201, .35); min-height: 380px; padding: 26px 26px 24px;
+           clip-path: polygon(28px 0, 100% 0, 100% calc(100% - 28px), calc(100% - 28px) 100%, 0 100%, 0 28px);
+           transition: transform .15s, border-color .15s, background .15s; }
+  a.card:hover, a.card:focus { transform: translateY(-4px); border-color: var(--accent); background: rgba(12, 36, 66, .96); outline: none; }
+  .num { color: var(--accent); font-weight: 700; letter-spacing: .2em; font-size: 16px; }
+  .art { height: 150px; display: grid; place-items: center; margin: 10px 0 14px; }
+  .art img { max-height: 140px; max-width: 100%; filter: drop-shadow(0 10px 14px rgba(0, 0, 0, .5)); }
+  .hexes { display: flex; gap: 14px; }
+  .hexes span { width: 64px; height: 74px; clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); }
+  h2 { margin: 0 0 8px; font-size: 32px; }
+  p { margin: 0 0 18px; color: var(--muted); font-size: 18px; line-height: 1.4; flex: 1; font-family: "Segoe UI", Arial, sans-serif; }
+  .play { align-self: flex-start; background: var(--accent); color: #051326; font-weight: 700; font-size: 22px; padding: 12px 26px;
+          clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px); }
+  footer { padding: 4px 48px 32px; color: var(--muted); font-size: 16px; font-family: "Segoe UI", Arial, sans-serif; }
+  #install { display: none; margin-left: 12px; background: transparent; color: var(--green); border: 2px solid var(--green); font: 700 16px Bahnschrift, Arial; padding: 8px 16px; cursor: pointer; }
+  @media (max-width: 600px) { header, h1, .sub, .grid, footer { padding-left: 16px; padding-right: 16px; margin-left: 0; margin-right: 0; } h1 { margin: 6px 16px 4px; } .sub { margin: 0 16px 20px; } }
 </style>
-<script type="importmap">{ "imports": { "three": "./lib/three.module.js" } }</script>
 </head>
 <body>
-<div id="help">
-  <b>DATA SORTER</b> — Explore the World of PI<br>
-  In VR: press <b>ENTER VR</b>, then pull <b>both triggers</b> to start.<br>
-  Blue data → <b>left</b> hand · Red anomaly → <b>right</b> hand.<br><br>
-  Desktop test: <span class="k">Space</span> start · <span class="k">F</span> left swing · <span class="k">J</span> right swing
-</div>
-<script type="module" src="./game.js"></script>
+<header>
+  <div class="logos"><img src="assets/genco_white.png" alt="TNB Genco"><img src="assets/ted_white.png" alt="Technology & Engineering Department"></div>
+  <div class="kicker">EXPLORE THE WORLD OF PI <button id="install">INSTALL APP</button></div>
+</header>
+<h1>PI VR GAMES</h1>
+<div class="sub">Pick a game, then press <b>ENTER VR</b>. Pull both triggers to start · B / Y returns here.</div>
+
+<main class="grid">
+  <a class="card" href="sorter.html" style="--accent: var(--teal)">
+    <div class="num">01 · BOILER ANOMALY DETECTION</div>
+    <div class="art"><div class="hexes"><span style="background:#1e90d6"></span><span style="background:#e5484d"></span><span style="background:#1e90d6"></span></div></div>
+    <h2>Data Sorter</h2>
+    <p>Plant data flies at you on the beat. Slash normal data with the left saber, anomalies with the right.</p>
+    <span class="play">PLAY</span>
+  </a>
+  <a class="card" href="coal.html" style="--accent: var(--green)">
+    <div class="num">02 · COAL SUPPLY CHAIN</div>
+    <div class="art"><img src="assets/a_coal_pile.png" alt=""></div>
+    <h2>Coal Stack</h2>
+    <p>Grab coal off the conveyor and stack each grade in its own yard slot before it falls off the end.</p>
+    <span class="play">PLAY</span>
+  </a>
+  <a class="card" href="dock.html" style="--accent: var(--amber)">
+    <div class="num">03 · COAL SUPPLY CHAIN</div>
+    <div class="art"><img src="assets/a_ship.png" alt=""></div>
+    <h2>Ship Dock Rush</h2>
+    <p>Point and berth every coal ship before its laytime runs out — keep the fleet off demurrage.</p>
+    <span class="play">PLAY</span>
+  </a>
+</main>
+<footer>Digital &amp; Data Booth by TNB Genco · Technology &amp; Engineering Department</footer>
+
+<script>
+  // installable app (PWA) + offline cache
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+  let deferred = null;
+  const btn = document.getElementById('install');
+  addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferred = e; btn.style.display = 'inline-block'; });
+  btn.addEventListener('click', async () => { if (!deferred) return; deferred.prompt(); await deferred.userChoice; deferred = null; btn.style.display = 'none'; });
+</script>
 </body>
 </html>

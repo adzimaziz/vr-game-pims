@@ -1,11 +1,15 @@
 // DATA SORTER — WebXR booth game for Pico 4 (PICO Browser) — TNB Genco · Explore the World of PI
-// Blue data tokens -> hit with the LEFT saber; red anomaly tokens -> hit with the RIGHT saber. 60-second rounds.
+// Blue data tokens -> hit with the LEFT saber; red anomaly tokens -> hit with the RIGHT saber.
+// Tokens are locked to the beat of the music: silent 3-2-1 countdown, music starts on "GO",
+// and every token reaches the sabers exactly on a beat (beat map: assets/beats.json, tools/beats.py).
 import * as THREE from 'three';
 import { VRButton } from './lib/VRButton.js';
 
 // ---------------------------------------------------------------- config
-const ROUND = Number(new URLSearchParams(location.search).get('round')) || 60;   // seconds per round (?round=45 to change)
-const SPAWN_Z = -18, PASS_Z = 0.6;
+const params = new URLSearchParams(location.search);
+const ROUND = Number(params.get('round')) || 60;   // seconds of music per round (?round=45 to change)
+const COUNTDOWN = 3;              // silent countdown before the music starts
+const SPAWN_Z = -18, HIT_Z = -0.5, PASS_Z = 0.6;
 const HIT_R = 0.2;                // token hit radius (m)
 const SABER_LEN = 0.75;
 const COL = { navy: 0x050d1c, teal: 0x3fd0c9, blue: 0x1e90d6, amber: 0xf2a541, red: 0xe5484d, green: 0x8fc74e, white: 0xffffff };
@@ -35,8 +39,8 @@ addEventListener('resize', () => {
 });
 
 // ---------------------------------------------------------------- environment
+const rings = [];
 function buildEnvironment() {
-  // floor: hex grid on a dark disc
   const c = document.createElement('canvas'); c.width = c.height = 1024;
   const g = c.getContext('2d'); g.fillStyle = '#071629'; g.fillRect(0, 0, 1024, 1024);
   g.strokeStyle = 'rgba(63,208,201,0.35)'; g.lineWidth = 2;
@@ -52,17 +56,18 @@ function buildEnvironment() {
   const floor = new THREE.Mesh(new THREE.CircleGeometry(30, 64), new THREE.MeshBasicMaterial({ map: tex }));
   floor.rotation.x = -Math.PI / 2; scene.add(floor);
 
-  // the data tunnel: static hexagon rings along the token path
+  // the data tunnel: hexagon rings along the token path (they pulse on every beat)
   for (let i = 0; i < 12; i++) {
     const z = -2.5 - i * 2.2, rr = 1.9;
     const pts = [];
     for (let k = 0; k <= 6; k++) { const a = Math.PI / 180 * (60 * k - 90); pts.push(new THREE.Vector3(rr * Math.cos(a), 1.35 + rr * Math.sin(a), z)); }
+    const base = 0.55 - i * 0.03;
     const ring = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),
-      new THREE.LineBasicMaterial({ color: i % 3 === 0 ? COL.green : COL.teal, transparent: true, opacity: 0.55 - i * 0.03 }));
-    scene.add(ring);
+      new THREE.LineBasicMaterial({ color: i % 3 === 0 ? COL.green : COL.teal, transparent: true, opacity: base }));
+    ring.userData.base = base;
+    scene.add(ring); rings.push(ring);
   }
 
-  // floating data dots around the player (the booth's dot-matrix look)
   const n = 1400, pos = new Float32Array(n * 3), colors = new Float32Array(n * 3);
   const palette = [new THREE.Color(0x58aaeb), new THREE.Color(0x4fd1c5), new THREE.Color(0x8fc74e), new THREE.Color(0xc8ecff)];
   for (let i = 0; i < n; i++) {
@@ -101,25 +106,26 @@ for (const [k, src] of [['ted', 'assets/ted_white.png'], ['genco', 'assets/genco
   const im = new Image(); im.onload = () => { logos[k] = im; drawMenu(); }; im.src = src;
 }
 
-const menu = makePanel(1200, 760, 2.4); menu.mesh.position.set(0, 1.55, -2.6); scene.add(menu.mesh);
+const menu = makePanel(1200, 800, 2.4); menu.mesh.position.set(0, 1.55, -2.6); scene.add(menu.mesh);
 const hud = makePanel(1100, 200, 2.2); hud.mesh.position.set(0, 2.55, -3.6); scene.add(hud.mesh);
-const results = makePanel(1200, 900, 2.4); results.mesh.position.set(0, 1.6, -2.6); scene.add(results.mesh);
+const results = makePanel(1200, 940, 2.4); results.mesh.position.set(0, 1.6, -2.6); scene.add(results.mesh);
 
 function drawMenu() {
   const { g, c, tex } = menu, W = c.width, H = c.height;
   frame(g, W, H);
-  if (logos.genco) g.drawImage(logos.genco, 50, 46, 130 * logos.genco.width / logos.genco.height * 0.62, 80);
+  if (logos.genco) g.drawImage(logos.genco, 50, 46, 80 * logos.genco.width / logos.genco.height, 80);
   if (logos.ted) g.drawImage(logos.ted, W - 50 - 150, 40, 150, 150 * logos.ted.height / logos.ted.width);
   g.fillStyle = '#8fc74e'; g.font = 'bold 30px Bahnschrift, Segoe UI, Arial'; g.fillText('EXPLORE THE WORLD OF PI', 60, 190);
   g.fillStyle = '#ffffff'; g.font = 'bold 110px Bahnschrift, Segoe UI, Arial'; g.fillText('DATA SORTER', 56, 300);
   g.font = '34px Segoe UI, Arial'; g.fillStyle = '#c9dbea';
-  g.fillText('Sort the plant data before it becomes a problem.', 60, 360);
+  g.fillText('Sort the plant data to the beat.', 60, 360);
   hexIcon(g, 110, 455, 42, '#1e90d6'); hexIcon(g, 110, 565, 42, '#e5484d');
   g.font = 'bold 44px Bahnschrift, Segoe UI, Arial';
   g.fillStyle = '#5fd3e8'; g.fillText('NORMAL DATA  →  LEFT HAND', 175, 470);
   g.fillStyle = '#ff8a7a'; g.fillText('ANOMALY  →  RIGHT HAND', 175, 580);
   g.fillStyle = '#ffffff'; g.font = 'bold 46px Bahnschrift, Segoe UI, Arial';
   g.fillText('Pull BOTH triggers to start', 60, 690);
+  g.fillStyle = '#9fb8cc'; g.font = '30px Segoe UI, Arial'; g.fillText('B / Y  ·  back to the game menu', 60, 750);
   tex.needsUpdate = true;
 }
 drawMenu();
@@ -134,7 +140,8 @@ function drawHud(score, combo, mult, timeLeft) {
   g.fillText('SCORE', 50, 62); g.fillText('COMBO', 470, 62); g.fillText('TIME', 860, 62);
   g.font = 'bold 92px Bahnschrift, Segoe UI, Arial'; g.fillStyle = '#ffffff'; g.fillText(String(score), 46, 160);
   g.fillStyle = mult > 1 ? '#8fc74e' : '#ffffff'; g.fillText(`${combo}`, 466, 160);
-  g.font = 'bold 44px Bahnschrift, Segoe UI, Arial'; g.fillText(mult > 1 ? `x${mult}` : '', 470 + g.measureText(String(combo)).width * 2.1 + 20, 150);
+  const cw = g.measureText(String(combo)).width;
+  g.font = 'bold 44px Bahnschrift, Segoe UI, Arial'; g.fillText(mult > 1 ? `x${mult}` : '', 470 + cw + 20, 150);
   g.font = 'bold 92px Bahnschrift, Segoe UI, Arial'; g.fillStyle = timeLeft < 10 ? '#ff8a7a' : '#ffffff';
   g.fillText(String(Math.max(0, Math.ceil(timeLeft))), 856, 160);
   tex.needsUpdate = true;
@@ -151,7 +158,8 @@ function drawResults(st) {
   g.fillStyle = '#ffffff'; g.font = 'bold 150px Bahnschrift, Segoe UI, Arial'; g.fillText(String(st.score), 56, 240);
   g.font = 'bold 54px Bahnschrift, Segoe UI, Arial'; g.fillStyle = '#5fd3e8'; g.fillText(rankFor(st.score), 60, 320);
   g.font = '36px Segoe UI, Arial'; g.fillStyle = '#c9dbea';
-  const acc = st.hits + st.wrong ? Math.round(100 * st.hits / (st.hits + st.wrong + st.missedA)) : 0;
+  const tries = st.hits + st.wrong + st.missedA;
+  const acc = tries ? Math.round(100 * st.hits / tries) : 0;
   g.fillText(`Accuracy ${acc}%   ·   Anomalies caught ${st.anomCaught} / ${st.anomTotal}   ·   Best combo ${st.bestCombo}`, 60, 390);
   g.fillStyle = '#8fc74e'; g.font = 'bold 34px Bahnschrift, Segoe UI, Arial'; g.fillText("TODAY'S TOP 5", 60, 480);
   const top = loadTop();
@@ -162,6 +170,7 @@ function drawResults(st) {
     g.fillText(`${i + 1}.  ${String(e.score).padStart(5, ' ')}   ${e.rank}${mine ? '   ← YOU' : ''}`, 60, 545 + i * 58);
   });
   g.fillStyle = '#ffffff'; g.font = 'bold 40px Bahnschrift, Segoe UI, Arial'; g.fillText('Pull BOTH triggers to play again', 60, 860);
+  g.fillStyle = '#9fb8cc'; g.font = '30px Segoe UI, Arial'; g.fillText('B / Y  ·  back to the game menu', 60, 905);
   tex.needsUpdate = true;
 }
 
@@ -180,7 +189,7 @@ function makeSaber(index) {
   glow.rotation.x = Math.PI / 2; glow.position.z = blade.position.z;
   group.add(handle, blade, glow);
   grip.add(group); scene.add(grip);
-  const s = { grip, bladeMat, glowMat, hand: null, source: null, base: new THREE.Vector3(), tip: new THREE.Vector3(), prevTip: new THREE.Vector3() };
+  const s = { grip, bladeMat, glowMat, hand: null, source: null, base: new THREE.Vector3(), tip: new THREE.Vector3() };
   grip.addEventListener('connected', (e) => {
     s.source = e.data; s.hand = e.data.handedness;
     const col = s.hand === 'left' ? COL.teal : COL.amber;
@@ -191,9 +200,9 @@ function makeSaber(index) {
 }
 makeSaber(0); makeSaber(1);
 
-function triggerPressed(hand) {
-  for (const s of sabers) if (s.hand === hand && s.source && s.source.gamepad) {
-    const b = s.source.gamepad.buttons[0]; if (b && (b.pressed || b.value > 0.6)) return true;
+function button(hand, idx) {
+  for (const s of sabers) if ((hand === 'any' || s.hand === hand) && s.source && s.source.gamepad) {
+    const b = s.source.gamepad.buttons[idx]; if (b && (b.pressed || b.value > 0.6)) return true;
   }
   return false;
 }
@@ -203,20 +212,41 @@ function pulse(hand, strength, ms) {
     if (h && h.pulse) h.pulse(strength, ms);
   }
 }
+function goMenu() {
+  const session = renderer.xr.getSession();
+  if (session) session.end().finally(() => { location.href = 'index.html'; });
+  else location.href = 'index.html';
+}
 
-// ---------------------------------------------------------------- audio (synthesised, no files)
-// background music: tenaga-music (looped) — quiet in the menu, louder during play
+// ---------------------------------------------------------------- music + beat map
 const music = new Audio('assets/bgm.mp3');
-music.loop = true; music.volume = 0.35;
-function startMusic() { if (music.paused) music.play().catch(() => { /* needs a user gesture; retried on next one */ }); }
-function musicLevel(v) { music.volume = v; }
-renderer.xr.addEventListener('sessionstart', startMusic);
+music.preload = 'auto'; music.volume = 0.75;
+let beatMap = { bpm: 118, beat: 60 / 118, offset: 0.16, strength: [] };
+fetch('assets/beats.json').then((r) => r.json()).then((b) => { beatMap = b; }).catch(() => { /* fallback grid */ });
+let musicOn = false, fadeOut = 0, unlocked = false;
+// browsers only allow audio after a user gesture: unlock on the ENTER VR click / first controller select,
+// so the music can start by itself exactly on "GO" three seconds later
+function unlockAudio() {
+  audio();
+  if (unlocked) return;
+  unlocked = true;
+  music.muted = true;
+  music.play().then(() => { music.pause(); music.currentTime = 0; music.muted = false; })
+    .catch(() => { music.muted = false; unlocked = false; });
+}
+addEventListener('pointerdown', unlockAudio, true);
+addEventListener('keydown', unlockAudio, true);
+renderer.xr.addEventListener('sessionstart', () => {
+  const s = renderer.xr.getSession();
+  s.addEventListener('selectstart', unlockAudio);
+  s.addEventListener('squeezestart', unlockAudio);
+});
 
+// sound effects (synthesised)
 let actx = null;
 function audio() {
   if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
   if (actx.state === 'suspended') actx.resume();
-  startMusic();
   return actx;
 }
 function tone(freq, dur = 0.12, type = 'sine', vol = 0.18, slide = 0) {
@@ -226,30 +256,59 @@ function tone(freq, dur = 0.12, type = 'sine', vol = 0.18, slide = 0) {
   o.connect(gn).connect(a.destination); o.start(t); o.stop(t + dur + 0.02);
 }
 const sfx = {
-  good: (m) => { tone(660 + 90 * m, 0.09, 'triangle', 0.16); tone(990 + 90 * m, 0.12, 'sine', 0.08); },
+  good: (m) => { tone(660 + 90 * m, 0.09, 'triangle', 0.12); tone(990 + 90 * m, 0.12, 'sine', 0.06); },
   wrong: () => tone(160, 0.25, 'sawtooth', 0.12, -60),
-  alarm: () => { tone(880, 0.16, 'square', 0.09); setTimeout(() => tone(660, 0.2, 'square', 0.09), 170); },
-  start: () => [523, 659, 784].forEach((f, i) => setTimeout(() => tone(f, 0.16, 'triangle', 0.14), i * 120)),
-  end: () => [784, 659, 523, 784].forEach((f, i) => setTimeout(() => tone(f, 0.2, 'triangle', 0.14), i * 150)),
+  alarm: () => { tone(880, 0.16, 'square', 0.08); setTimeout(() => tone(660, 0.2, 'square', 0.08), 170); },
+  count: () => tone(440, 0.12, 'triangle', 0.16),
+  go: () => tone(880, 0.25, 'triangle', 0.18),
 };
+
+// ---------------------------------------------------------------- chart (which beats get a token)
+function buildChart() {
+  const b = beatMap, out = [];
+  for (let k = 0; ; k++) {
+    const t = b.offset + k * b.beat;
+    if (t > ROUND - 0.4) break;
+    if (t < 1.0) continue;                                    // first token about a second after "GO"
+    const s = b.strength[k] ?? 0.8, p = t / ROUND;
+    let take;
+    if (p < 0.25) take = k % 2 === 0;                         // warm-up: every other beat
+    else if (p < 0.6) take = k % 2 === 0 || s > 0.55;         // build: most beats
+    else take = true;                                         // finale: every beat
+    if (take) out.push(t);
+    if (p >= 0.6 && s > 0.9 && Math.random() < 0.25) out.push(t + b.beat / 2);   // occasional off-beat
+  }
+  out.sort((a, c) => a - c);
+  return out.map((t) => ({ t, speed: 5.5 + 2.5 * (t / ROUND), anomaly: Math.random() < 0.3 + 0.12 * (t / ROUND) }));
+}
+
+// song clock: negative during the countdown, then follows the music element (drift-corrected)
+let startWall = 0;
+function songTime() {
+  let t = (performance.now() - startWall) / 1000 - COUNTDOWN;
+  if (musicOn && !music.paused && music.currentTime > 0.05) {
+    const drift = music.currentTime - t;
+    if (Math.abs(drift) > 0.06) { startWall -= drift * 1000; t = music.currentTime; }
+  }
+  return t;
+}
 
 // ---------------------------------------------------------------- tokens, bursts, floating text
 const hexGeo = new THREE.CylinderGeometry(0.17, 0.17, 0.07, 6); hexGeo.rotateX(Math.PI / 2);
 const ringGeo = new THREE.TorusGeometry(0.24, 0.012, 6, 6);
 const tokens = [];
-function spawnToken(speed, anomalyChance) {
-  const anomaly = Math.random() < anomalyChance;
+function spawnToken(spec) {
   const mat = new THREE.MeshStandardMaterial({
-    color: anomaly ? COL.red : COL.blue, emissive: anomaly ? 0x8a1010 : 0x0b4f80, emissiveIntensity: 1.2, metalness: 0.2, roughness: 0.35,
+    color: spec.anomaly ? COL.red : COL.blue, emissive: spec.anomaly ? 0x8a1010 : 0x0b4f80, emissiveIntensity: 1.2, metalness: 0.2, roughness: 0.35,
   });
   const mesh = new THREE.Mesh(hexGeo, mat);
   mesh.position.set((Math.random() - 0.5) * 1.1, 1.05 + Math.random() * 0.65, SPAWN_Z);
-  if (anomaly) {
+  if (spec.anomaly) {
     const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: COL.amber }));
-    ring.rotation.z = Math.PI / 6; mesh.add(ring); mesh.userData.ring = ring;
+    ring.rotation.z = Math.PI / 6; mesh.add(ring);
   }
   scene.add(mesh);
-  tokens.push({ mesh, anomaly, speed, spin: (Math.random() - 0.5) * 2 });
+  tokens.push({ mesh, anomaly: spec.anomaly, beatT: spec.t, speed: spec.speed, spin: (Math.random() - 0.5) * 2 });
 }
 function removeToken(i) { const t = tokens[i]; scene.remove(t.mesh); t.mesh.material.dispose(); tokens.splice(i, 1); }
 
@@ -263,36 +322,40 @@ function burst(pos, color, n = 16) {
   }
 }
 const floaters = [];
-function floatText(text, pos, color) {
+function floatText(text, pos, color, size = 1) {
   const c = document.createElement('canvas'); c.width = 512; c.height = 128;
   const g = c.getContext('2d'); g.font = 'bold 84px Bahnschrift, Segoe UI, Arial'; g.textAlign = 'center';
   g.lineWidth = 10; g.strokeStyle = 'rgba(0,0,0,0.6)'; g.strokeText(text, 256, 96); g.fillStyle = color; g.fillText(text, 256, 96);
   const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
   const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
-  sp.scale.set(0.8, 0.2, 1); sp.position.copy(pos); scene.add(sp);
+  sp.scale.set(0.8 * size, 0.2 * size, 1); sp.position.copy(pos); scene.add(sp);
   floaters.push({ sp, life: 0.9 });
 }
 
-// red flash attached to the camera for missed anomalies
 const flash = new THREE.Mesh(new THREE.SphereGeometry(0.4, 16, 12), new THREE.MeshBasicMaterial({ color: COL.red, side: THREE.BackSide, transparent: true, opacity: 0, depthTest: false }));
 flash.renderOrder = 20; camera.add(flash);
 
 // ---------------------------------------------------------------- game state
-let state = 'menu', tState = 0, spawnT = 0;
-let st = null;
+let state = 'menu', tState = 0;
+let st = null, chart = [], chartIdx = 0, lastCount = 99, lastBeat = -1;
 function newStats() { return { id: Date.now(), score: 0, combo: 0, bestCombo: 0, hits: 0, wrong: 0, missedA: 0, anomCaught: 0, anomTotal: 0 }; }
 function setState(s) {
   state = s; tState = 0;
   menu.mesh.visible = s === 'menu';
   hud.mesh.visible = s === 'countdown' || s === 'play';
   results.mesh.visible = s === 'end';
-  musicLevel(s === 'countdown' || s === 'play' ? 0.6 : 0.35);
-  if (s === 'countdown') { st = newStats(); hudCache = ''; drawHud(0, 0, 1, ROUND); sfx.start(); }
+  if (s === 'countdown') {
+    st = newStats(); hudCache = ''; drawHud(0, 0, 1, ROUND);
+    chart = buildChart(); chartIdx = 0; lastCount = 99; lastBeat = -1;
+    music.pause(); music.currentTime = 0; music.volume = 0.75; musicOn = false; fadeOut = 0;
+    startWall = performance.now();
+  }
   if (s === 'end') {
     for (let i = tokens.length - 1; i >= 0; i--) removeToken(i);
     const top = loadTop(); top.push({ id: st.id, score: st.score, rank: rankFor(st.score) });
     top.sort((a, b) => b.score - a.score); saveTop(top.slice(0, 20));
-    drawResults(st); sfx.end();
+    drawResults(st);
+    fadeOut = 1.6;                                            // music fades out over 1.6 s
   }
 }
 setState('menu');
@@ -316,7 +379,6 @@ function scoreHit(tok, hand) {
   }
 }
 
-// distance from point p to segment ab
 const _ab = new THREE.Vector3(), _ap = new THREE.Vector3();
 function segDist(p, a, b) {
   _ab.subVectors(b, a); _ap.subVectors(p, a);
@@ -325,94 +387,106 @@ function segDist(p, a, b) {
 }
 
 // ---------------------------------------------------------------- desktop test controls
-const keys = { left: 0, right: 0, start: false };
+const keys = { left: false, right: false, start: false };
 addEventListener('keydown', (e) => {
-  if (e.code === 'KeyF') keys.left = 0.25;
-  if (e.code === 'KeyJ') keys.right = 0.25;
+  if (e.code === 'KeyF') keys.left = true;
+  if (e.code === 'KeyJ') keys.right = true;
   if (e.code === 'Space') keys.start = true;
+  if (e.code === 'KeyM' || e.code === 'Escape') goMenu();
   audio();
 });
 function desktopSwing(hand) {
-  // hit the nearest token that is close to the player
-  let best = -1, bz = -3.2;
-  tokens.forEach((t, i) => { if (t.mesh.position.z > bz && t.mesh.position.z < 0.4) { best = i; bz = t.mesh.position.z; } });
+  // hit the token closest to the hit plane (within the swing window)
+  let best = -1, bz = HIT_Z - 1.6;
+  tokens.forEach((t, i) => { const z = t.mesh.position.z; if (z > bz && z < PASS_Z) { best = i; bz = z; } });
   if (best >= 0) { scoreHit(tokens[best], hand); removeToken(best); }
 }
 
-// debug handle for testing from the browser console (read-only snapshot)
-window.__ds = () => ({ state, tState: +tState.toFixed(2), tokens: tokens.length, stats: st && { ...st } });
+window.__ds = () => ({ state, song: +songTime().toFixed(2), music: +music.currentTime.toFixed(2), tokens: tokens.length, chart: chart.length, stats: st && { ...st } });
 
 // ---------------------------------------------------------------- main loop
 const clock = new THREE.Clock();
-let bothWasDown = false;
+let bothWasDown = false, backWasDown = false;
 renderer.setAnimationLoop(() => {
   const dt = Math.min(clock.getDelta(), 0.05);
   tState += dt;
   const inXR = renderer.xr.isPresenting;
 
-  // start / restart: both triggers (VR) or Space (desktop)
-  const bothDown = triggerPressed('left') && triggerPressed('right');
+  // start / restart: both triggers (VR) or Space (desktop) · back to menu: B / Y
+  const bothDown = button('left', 0) && button('right', 0);
   const startPressed = (bothDown && !bothWasDown) || keys.start;
   bothWasDown = bothDown; keys.start = false;
   if (startPressed) { audio(); if (state === 'menu') setState('countdown'); else if (state === 'end' && tState > 2.5) setState('menu'); }
+  const backDown = button('any', 5);
+  if (backDown && !backWasDown && (state === 'menu' || state === 'end')) goMenu();
+  backWasDown = backDown;
 
-  // saber segments
   for (const s of sabers) {
-    s.prevTip.copy(s.tip);
     s.grip.updateMatrixWorld(true);
     s.base.set(0, 0, -0.05).applyMatrix4(s.grip.matrixWorld);
     s.tip.set(0, 0, -0.05 - SABER_LEN).applyMatrix4(s.grip.matrixWorld);
   }
 
-  if (state === 'countdown') {
-    const left = 3 - tState;
-    if (Math.ceil(left) !== Math.ceil(left + dt)) { tone(440, 0.1, 'triangle', 0.14); floatText(String(Math.ceil(left)), new THREE.Vector3(0, 1.6, -2), '#ffffff'); }
-    // tokens already start flying in during the countdown so the first one arrives right after "GO!"
-    spawnT -= dt;
-    if (tState > 0.6 && spawnT <= 0) { spawnToken(3.6, 0.35); spawnT = 0.95; }
-    if (left <= 0) { setState('play'); floatText('GO!', new THREE.Vector3(0, 1.6, -2), '#8fc74e'); }
-  }
+  if (state === 'countdown' || state === 'play') {
+    const T = songTime();
 
-  if (state === 'play') {
-    const prog = tState / ROUND;
-    const speed = 3.6 + 2.6 * prog;                   // m/s
-    const interval = 0.95 - 0.5 * prog;              // s between tokens
-    spawnT -= dt;
-    if (spawnT <= 0) { spawnToken(speed, 0.35); spawnT = interval; }
-    drawHud(st.score, st.combo, multiplier(), ROUND - tState);
-    if (tState >= ROUND) setState('end');
-  }
-
-  // move tokens, collisions
-  for (let i = tokens.length - 1; i >= 0; i--) {
-    const t = tokens[i], m = t.mesh;
-    m.position.z += t.speed * dt;
-    m.rotation.z += t.spin * dt;
-    if (t.anomaly) {
-      const k = 1 + 0.12 * Math.sin(performance.now() / 70);
-      m.scale.setScalar(k); m.material.emissiveIntensity = 1 + 0.8 * Math.abs(Math.sin(performance.now() / 110));
+    // countdown 3-2-1 in silence, music starts exactly on GO
+    if (T < 0) {
+      const n = Math.ceil(-T);
+      if (n !== lastCount && n <= 3) { lastCount = n; sfx.count(); floatText(String(n), new THREE.Vector3(0, 1.6, -2), '#ffffff', 1.6); }
+    } else if (!musicOn) {
+      music.currentTime = 0; music.play().catch(() => {}); musicOn = true;
+      sfx.go(); floatText('GO!', new THREE.Vector3(0, 1.6, -2), '#8fc74e', 1.6);
+      setState('play');
     }
-    if (state !== 'play') continue;
-    let hit = null;
-    if (inXR) for (const s of sabers) if (s.hand && segDist(m.position, s.base, s.tip) < HIT_R) { hit = s.hand; break; }
-    if (hit) { scoreHit(t, hit); removeToken(i); continue; }
-    if (m.position.z > PASS_Z) {
+
+    // spawn: each token appears early enough to reach the hit plane on its beat
+    while (chartIdx < chart.length && T >= chart[chartIdx].t - (HIT_Z - SPAWN_Z) / chart[chartIdx].speed) spawnToken(chart[chartIdx++]);
+
+    // tunnel pulses on every beat
+    const beatIdx = Math.floor((T - beatMap.offset) / beatMap.beat);
+    if (T >= 0 && beatIdx !== lastBeat) { lastBeat = beatIdx; rings.forEach((r) => { r.material.opacity = 1; }); }
+
+    // move tokens on the song clock
+    for (let i = tokens.length - 1; i >= 0; i--) {
+      const t = tokens[i], m = t.mesh;
+      m.position.z = HIT_Z - t.speed * (t.beatT - T);
+      m.rotation.z += t.spin * dt;
       if (t.anomaly) {
-        st.anomTotal++; st.missedA++; st.combo = 0; st.score = Math.max(0, st.score - 10);
-        flash.material.opacity = 0.45; sfx.alarm(); floatText('MISSED ANOMALY', new THREE.Vector3(0, 2.0, -1.6), '#ff8a7a');
-        pulse('left', 0.8, 120); pulse('right', 0.8, 120);
-      } else st.combo = 0;
-      removeToken(i);
+        m.scale.setScalar(1 + 0.12 * Math.sin(performance.now() / 70));
+        m.material.emissiveIntensity = 1 + 0.8 * Math.abs(Math.sin(performance.now() / 110));
+      }
+      let hit = null;
+      if (inXR) for (const s of sabers) if (s.hand && segDist(m.position, s.base, s.tip) < HIT_R) { hit = s.hand; break; }
+      if (hit) { scoreHit(t, hit); removeToken(i); continue; }
+      if (m.position.z > PASS_Z) {
+        if (t.anomaly) {
+          st.anomTotal++; st.missedA++; st.combo = 0; st.score = Math.max(0, st.score - 10);
+          flash.material.opacity = 0.45; sfx.alarm(); floatText('MISSED ANOMALY', new THREE.Vector3(0, 2.0, -1.6), '#ff8a7a');
+          pulse('left', 0.8, 120); pulse('right', 0.8, 120);
+        } else st.combo = 0;
+        removeToken(i);
+      }
     }
+
+    if (!inXR && state === 'play') {
+      if (keys.left) desktopSwing('left');
+      if (keys.right) desktopSwing('right');
+    }
+    keys.left = keys.right = false;
+
+    drawHud(st.score, st.combo, multiplier(), Math.min(ROUND, ROUND - T));
+    if (state === 'play' && T >= ROUND) setState('end');
   }
 
-  // desktop swings
-  if (!inXR && state === 'play') {
-    if (keys.left > 0) { desktopSwing('left'); keys.left = 0; }
-    if (keys.right > 0) { desktopSwing('right'); keys.right = 0; }
+  // music fade-out after the round
+  if (fadeOut > 0) {
+    fadeOut -= dt; music.volume = Math.max(0, 0.75 * fadeOut / 1.6);
+    if (fadeOut <= 0) { music.pause(); musicOn = false; }
   }
 
   // effects
+  rings.forEach((r) => { r.material.opacity += (r.userData.base - r.material.opacity) * Math.min(1, dt * 6); });
   for (let i = bursts.length - 1; i >= 0; i--) {
     const b = bursts[i]; b.life -= dt; b.v.y -= 4 * dt; b.m.position.addScaledVector(b.v, dt);
     b.m.material.opacity = Math.max(0, b.life / 0.6);
